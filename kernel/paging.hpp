@@ -89,7 +89,11 @@ union PageMapEntry {
   }
 };
 
+/** @brief 1ページ分0埋めして先頭物理アドレスを返す **/
 WithError<PageMapEntry*> NewPageMap();
+/** @brief hugepage 1ページ分0埋めして先頭物理アドレスを返す**/
+WithError<PageMapEntry*> NewHugePageMap();
+/** @brief 4KiBページを1ページ分開放*/
 Error FreePageMap(PageMapEntry* table);
 Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages,
                     bool writable = true);

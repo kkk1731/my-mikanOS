@@ -122,6 +122,7 @@ WithError<uint64_t> LoadELF(Elf64_Ehdr* ehdr) {
   return CopyLoadSegments(ehdr);
 }
 
+//make new hierarchical page table
 WithError<PageMapEntry*> SetupPML4(Task& current_task) {
   auto pml4 = NewPageMap();
   if (pml4.error) {

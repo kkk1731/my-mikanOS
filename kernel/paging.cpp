@@ -8,18 +8,27 @@
 
 #include "logger.hpp"
 
+int printk(const char* format, ...);
+
 namespace {
   const uint64_t kPageSize4K = 4096;
   const uint64_t kPageSize2M = 512 * kPageSize4K;
   const uint64_t kPageSize1G = 512 * kPageSize2M;
 
+  //1st table:1 page
   alignas(kPageSize4K) std::array<uint64_t, 512> pml4_table;
+  //2nd table:1 page
   alignas(kPageSize4K) std::array<uint64_t, 512> pdp_table;
+  //3rd table:64 page(=2th table 64 entry)
   alignas(kPageSize4K)
     std::array<std::array<uint64_t, 512>, kPageDirectoryCount> page_directory;
+  
+  size_t max(int a, int b){
+    return a > b ? (size_t)a : (size_t)b;
+  }
 }
 
-void SetupIdentityPageTable() {
+void SetupIdentityPageTable() {//direct mpping, all hugepage
   pml4_table[0] = reinterpret_cast<uint64_t>(&pdp_table[0]) | 0x003;
   for (int i_pdpt = 0; i_pdpt < page_directory.size(); ++i_pdpt) {
     pdp_table[i_pdpt] = reinterpret_cast<uint64_t>(&page_directory[i_pdpt]) | 0x003;
@@ -60,6 +69,23 @@ WithError<PageMapEntry*> SetNewPageMapIfNotPresent(PageMapEntry& entry) {
   return { child_map, MAKE_ERROR(Error::kSuccess) };
 }
 
+//try to added by kk@huge page allocate
+WithError<PageMapEntry*> SetNewHugePageMapIfNotPresent(PageMapEntry& entry) {
+  if (entry.bits.present) {
+    return { entry.Pointer(), MAKE_ERROR(Error::kFailHugeAllocate) };
+  }
+  //NewHugePageMapに変更
+  auto [ child_map, err ] = NewHugePageMap();
+  if (err) {
+    return { nullptr, err };
+  }
+
+  entry.SetPointer(child_map);
+  entry.bits.present = 1;
+  if (err == Error::kSuccess) printk("NewHugePageMap success\n");
+  return {child_map, MAKE_ERROR(Error::kSuccess)};
+}
+
 // #@@range_begin(setup_pagemap)
 WithError<size_t> SetupPageMap(
     PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr,
@@ -67,12 +93,34 @@ WithError<size_t> SetupPageMap(
   while (num_4kpages > 0) {
     const auto entry_index = addr.Part(page_map_level);
 
+    //hugepage処理 未完成なのでコメントアウト
+    /*
+    //is it the head of 2MB aligned range?
+    if (page_map_level == 2 && addr.Part(1) == 0) {
+      printk("try to huge allocate, addr=0x%lx\n", addr.value);
+      auto [ child_map, err ] = SetNewHugePageMapIfNotPresent(page_map[entry_index]);
+      if(err==Error::kSuccess){
+          page_map[entry_index].bits.user = 1;
+          page_map[entry_index].bits.writable = writable;
+          page_map[entry_index].bits.huge_page = 1;
+          num_4kpages = max(0, num_4kpages - HugePage4kNum);
+
+          if (entry_index == 511) {
+              break;
+          }
+
+          addr.SetPart(page_map_level, entry_index + 1);
+          continue;
+      }
+    }
+    */
+    
     auto [ child_map, err ] = SetNewPageMapIfNotPresent(page_map[entry_index]);
     if (err) {
       return { num_4kpages, err };
     }
     page_map[entry_index].bits.user = 1;
-
+    
     if (page_map_level == 1) {
       page_map[entry_index].bits.writable = writable;
       --num_4kpages;
@@ -100,6 +148,7 @@ WithError<size_t> SetupPageMap(
   return { num_4kpages, MAKE_ERROR(Error::kSuccess) };
 }
 
+//changed for hugepage free
 // #@@range_begin(clean_page_map)
 Error CleanPageMap(
     PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr) {
@@ -110,7 +159,11 @@ Error CleanPageMap(
       continue;
     }
 
-    if (page_map_level > 1) {
+    //hugepage free prepare
+    bool is_hugepage = false;
+    if (page_map_level == 2) is_hugepage = page_map[i].bits.huge_page;
+
+    if (page_map_level > 1 && !is_hugepage) {
       if (auto err = CleanPageMap(entry.Pointer(), page_map_level - 1, addr)) {
         return err;
       }
@@ -120,7 +173,8 @@ Error CleanPageMap(
     if (entry.bits.writable) {
       const auto entry_addr = reinterpret_cast<uintptr_t>(entry.Pointer());
       const FrameID map_frame{entry_addr / kBytesPerFrame};
-      if (auto err = memory_manager->Free(map_frame, 1)) {
+      int frame_num = is_hugepage ? HugePage4kNum : 1;
+      if (auto err = memory_manager->Free(map_frame, frame_num)) {
         return err;
       }
     }
@@ -194,6 +248,19 @@ WithError<PageMapEntry*> NewPageMap() {
 
   auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
   memset(e, 0, sizeof(uint64_t) * 512);
+  return { e, MAKE_ERROR(Error::kSuccess) };
+}
+
+//added by kk
+WithError<PageMapEntry*> NewHugePageMap(){
+  auto frame = memory_manager->AllocateHuge(1);
+  if(frame.error){
+    return {nullptr, frame.error};
+  }
+
+  printk("Hugepage Allocate\n");
+  auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
+  memset(e, 0, sizeof(uint64_t) * 512 * 512);
   return { e, MAKE_ERROR(Error::kSuccess) };
 }
 

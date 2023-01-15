@@ -3,8 +3,43 @@
 #include <bitset>
 #include "logger.hpp"
 
+namespace{
+  /** @brief aをb(2の累乗)で切り上げ*/
+  unsigned long myceil(unsigned long a, int b){
+      return a > (a & ~(b - 1)) ? (a & ~(b - 1)) + b : a;
+  }
+}
+
 BitmapMemoryManager::BitmapMemoryManager()
-  : alloc_map_{}, range_begin_{FrameID{0}}, range_end_{FrameID{kFrameCount}} {
+  : alloc_map_{}, alloc_map_2m_{}, range_begin_{FrameID{0}}, range_end_{FrameID{kFrameCount}} {
+}
+
+//plan to change@64k, 2m bitmap a
+WithError<FrameID> BitmapMemoryManager::AllocateHuge(size_t num_frames) {
+  size_t start_frame_id = myceil(range_begin_.ID(), HugePage4kNum);
+  while(true){
+      size_t i = 0;
+      for (; i<num_frames; ++i){
+          if(start_frame_id + i*HugePage4kNum>=range_end_.ID()){
+              //failed
+              return {kNullFrame, MAKE_ERROR(Error::kFailHugeAllocate)};
+          }
+          if (GetBitHuge(FrameID { start_frame_id + i* HugePage4kNum})) {
+              // 割り当て済み
+              break;
+          }
+      }
+      if(num_frames == i){
+        //find hugeage area
+          MarkAllocated(FrameID{start_frame_id}, num_frames * HugePage4kNum);
+          return {
+              FrameID{start_frame_id},
+              MAKE_ERROR(Error::kSuccess),
+          };
+      }
+    // 次のフレームから再検索
+      start_frame_id += (i + 1) * HugePage4kNum;
+  }
 }
 
 WithError<FrameID> BitmapMemoryManager::Allocate(size_t num_frames) {
@@ -67,12 +102,24 @@ bool BitmapMemoryManager::GetBit(FrameID frame) const {
   return (alloc_map_[line_index] & (static_cast<MapLineType>(1) << bit_index)) != 0;
 }
 
+//added by kk
+bool BitmapMemoryManager::GetBitHuge(FrameID frame) const{
+  auto line_index = frame.ID() / HugePage4kNum / kBitsPerMapLine;
+  auto bit_index = frame.ID()  / HugePage4kNum % kBitsPerMapLine;
+
+  return (alloc_map_2m_[line_index] & (static_cast<MapLineType>(1) << bit_index)) != 0;
+}
+
+//change@for hugepage(false にset するときのhugepage動作未定義)
 void BitmapMemoryManager::SetBit(FrameID frame, bool allocated) {
   auto line_index = frame.ID() / kBitsPerMapLine;
   auto bit_index = frame.ID() % kBitsPerMapLine;
+  auto line_index_2m = frame.ID() / HugePage4kNum / kBitsPerMapLine;
+  auto bit_index_2m = (frame.ID() / HugePage4kNum) % kBitsPerMapLine;
 
   if (allocated) {
     alloc_map_[line_index] |= (static_cast<MapLineType>(1) << bit_index);
+    alloc_map_2m_[line_index_2m] |= (static_cast<MapLineType>(1) << bit_index_2m);
   } else {
     alloc_map_[line_index] &= ~(static_cast<MapLineType>(1) << bit_index);
   }

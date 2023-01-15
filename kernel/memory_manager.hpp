@@ -70,6 +70,8 @@ class BitmapMemoryManager {
 
   /** @brief 要求されたフレーム数の領域を確保して先頭のフレーム ID を返す */
   WithError<FrameID> Allocate(size_t num_frames);
+  /** @brief 要求されたフレーム数のhugepage領域を確保して先頭のフレームIDを返す*/
+  WithError<FrameID> AllocateHuge(size_t num_freams);
   Error Free(FrameID start_frame, size_t num_frames);
   void MarkAllocated(FrameID start_frame, size_t num_frames);
 
@@ -87,12 +89,14 @@ class BitmapMemoryManager {
 
  private:
   std::array<MapLineType, kFrameCount / kBitsPerMapLine> alloc_map_;
+  std::array<MapLineType, kFrameCount / kBitsPerMapLine / HugePage4kNum> alloc_map_2m_;
   /** @brief このメモリマネージャで扱うメモリ範囲の始点． */
   FrameID range_begin_;
   /** @brief このメモリマネージャで扱うメモリ範囲の終点．最終フレームの次のフレーム． */
   FrameID range_end_;
 
   bool GetBit(FrameID frame) const;
+  bool GetBitHuge(FrameID frame) const;
   void SetBit(FrameID frame, bool allocated);
 };
 

@@ -55,4 +55,5 @@ inline bool IsAvailable(MemoryType memory_type) {
 }
 
 const int kUEFIPageSize = 4096;
+const int HugePage4kNum = 0x200000 / kUEFIPageSize;
 #endif
