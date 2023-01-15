@@ -10,10 +10,13 @@ mikanOS では物理メモリの管理を 4KiB ごとに bitmap で行ってい�
 
 結果の比較として、適当なアプリの実行時間を比較します。なお、アプリの実装も併せて変えたらだいぶ早くなってしまい、カーネル単体の影響がわからなくなっています。。。
 - アプリ内容：ファイルを読み込み、コマンドで渡した引数がそのファイル内に何回出現するか調べる
+- 結果：
 
 
 改造前の実行時間(elapsed=...)の行
+
 ![dpaging_before](https://user-images.githubusercontent.com/73451469/212553958-7e899efc-c885-4b74-bde2-bc42e7e62248.png)
 
 改造後の実行時間(elapsed=...)の行
+
 ![dpagin_after](https://user-images.githubusercontent.com/73451469/212553899-333b092d-144b-456a-ac7d-4faa491e5941.png)
