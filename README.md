@@ -3,7 +3,7 @@
 現在進行形で拡張していますがペースは遅め。
 
 オリジナルとの差分は
-![diff_original](https://github.com/kkk1731/my-mikanOS/commit/bd641a88ddd68bfc7f88b2a90083a89b1a58a4fb#diff-0d6c189bc4fc1bce5a92f744d27cae3313d2f264c04e202c78941e7c33eade9f)
+[diff_original](https://github.com/kkk1731/my-mikanOS/commit/bd641a88ddd68bfc7f88b2a90083a89b1a58a4fb#diff-0d6c189bc4fc1bce5a92f744d27cae3313d2f264c04e202c78941e7c33eade9f)
 
 # 拡張内容
 ## メモリの管理
