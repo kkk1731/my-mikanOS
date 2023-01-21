@@ -22,7 +22,7 @@ mikanOS では物理メモリの管理を 4KiB ごとに bitmap で行ってい�
 
 改造後の実行時間(elapsed=...)の行
 
-![dpagin_after](https://user-images.githubusercontent.com/73451469/212553899-333b092d-144b-456a-ac7d-4faa491e5941.png)
+![dpaging_huge](https://user-images.githubusercontent.com/73451469/213874552-eb1b1bf0-5ec7-4666-ac92-8cca86829ce5.png)
 
 # アクティブタブ切り替え
 ウィンドウをクリックするとそのウィンドウがアクティブになり、
