@@ -18,11 +18,11 @@ mikanOS では物理メモリの管理を 4KiB ごとに bitmap で行ってい�
 結果は、実行時間が約 1/4 になりました。実行時間の平均を計算してもちょうど 1/4 くらいでした。喜び。こんな早くなった原因としては、TLB や PTwalk がどうこうというよりもページフォールト回数が減ったというのが大きいと思います。動作確認として dpaging_huge の背景画面に Hugepage 割り当てが成功したメッセージを出しています (kernel/pagin.cpp NewHugePageMap() 関数参照)。
 
 
-改造前の実行時間(elapsed=...)の行
+改造前の実行時間(elapsed ...)の行
 
 ![dpaging_regular](https://user-images.githubusercontent.com/73451469/213874622-9c6dd258-39ff-4f27-bd58-30703624080c.png)
 
-改造後の実行時間(elapsed=...)の行
+改造後の実行時間(elapsed ...)の行
 
 ![dpaging_huge](https://user-images.githubusercontent.com/73451469/213874552-eb1b1bf0-5ec7-4666-ac92-8cca86829ce5.png)
 
