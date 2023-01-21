@@ -72,7 +72,7 @@ WithError<PageMapEntry*> SetNewPageMapIfNotPresent(PageMapEntry& entry) {
 //try to added by kk@huge page allocate
 WithError<PageMapEntry*> SetNewHugePageMapIfNotPresent(PageMapEntry& entry) {
   if (entry.bits.present) {
-    return { entry.Pointer(), MAKE_ERROR(Error::kFailHugeAllocate) };
+    return { entry.Pointer(), MAKE_ERROR(Error::kSuccess) };
   }
   //NewHugePageMapに変更
   auto [ child_map, err ] = NewHugePageMap();
@@ -92,28 +92,6 @@ WithError<size_t> SetupPageMap(
     size_t num_4kpages, bool writable) {
   while (num_4kpages > 0) {
     const auto entry_index = addr.Part(page_map_level);
-
-    //hugepage処理 未完成なのでコメントアウト
-    /*
-    //is it the head of 2MB aligned range?
-    if (page_map_level == 2 && addr.Part(1) == 0) {
-      printk("try to huge allocate, addr=0x%lx\n", addr.value);
-      auto [ child_map, err ] = SetNewHugePageMapIfNotPresent(page_map[entry_index]);
-      if(err==Error::kSuccess){
-          page_map[entry_index].bits.user = 1;
-          page_map[entry_index].bits.writable = writable;
-          page_map[entry_index].bits.huge_page = 1;
-          num_4kpages = max(0, num_4kpages - HugePage4kNum);
-
-          if (entry_index == 511) {
-              break;
-          }
-
-          addr.SetPart(page_map_level, entry_index + 1);
-          continue;
-      }
-    }
-    */
     
     auto [ child_map, err ] = SetNewPageMapIfNotPresent(page_map[entry_index]);
     if (err) {
@@ -146,6 +124,50 @@ WithError<size_t> SetupPageMap(
   }
 
   return { num_4kpages, MAKE_ERROR(Error::kSuccess) };
+}
+
+//added by kk
+WithError<size_t> SetupHugePageMap(
+    PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr,
+    size_t num_2mpages, bool writable) {
+
+  while (num_2mpages > 0) {
+    const auto entry_index = addr.Part(page_map_level);
+    
+    auto [ child_map, err ] = SetNewHugePageMapIfNotPresent(page_map[entry_index]);
+    if (err) {
+      printk("SetNewHugePageMapIfNotPresent err=%d\n", err);
+      return {num_2mpages, err};
+    }
+    page_map[entry_index].bits.user = 1;
+    
+    
+    if (page_map_level == 2) {
+      page_map[entry_index].bits.writable = writable;
+      page_map[entry_index].bits.huge_page = 1;
+      --num_2mpages;
+    } else {
+      page_map[entry_index].bits.writable = true;
+      auto [ num_remain_pages, err ] =
+        SetupHugePageMap(child_map, page_map_level - 1, addr, num_2mpages, writable);
+// #@@range_end(setup_pagemap)
+      if (err) {
+        printk("SetupHugePageMap err=%d\n", err);
+        return { num_2mpages, err };
+      }
+      num_2mpages = num_remain_pages;
+    }
+
+    if (entry_index == 511) {
+      break;
+    }
+
+    addr.SetPart(page_map_level, entry_index + 1);
+    for (int level = page_map_level - 1; level >= 2; --level) {
+      addr.SetPart(level, 0);
+    }
+  }
+  return {num_2mpages, MAKE_ERROR(Error::kSuccess)};
 }
 
 //changed for hugepage free
@@ -245,7 +267,6 @@ WithError<PageMapEntry*> NewPageMap() {
   if (frame.error) {
     return { nullptr, frame.error };
   }
-
   auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
   memset(e, 0, sizeof(uint64_t) * 512);
   return { e, MAKE_ERROR(Error::kSuccess) };
@@ -258,10 +279,10 @@ WithError<PageMapEntry*> NewHugePageMap(){
     return {nullptr, frame.error};
   }
 
-  printk("Hugepage Allocate\n");
   auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
   memset(e, 0, sizeof(uint64_t) * 512 * 512);
-  return { e, MAKE_ERROR(Error::kSuccess) };
+  printk("Hugepage allocate success, addr = 0x%lx\n", (unsigned long)e);
+  return {e, MAKE_ERROR(Error::kSuccess)};
 }
 
 Error FreePageMap(PageMapEntry* table) {
@@ -272,6 +293,11 @@ Error FreePageMap(PageMapEntry* table) {
 Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages, bool writable) {
   auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
   return SetupPageMap(pml4_table, 4, addr, num_4kpages, writable).error;
+}
+
+Error SetupHugePageMaps(LinearAddress4Level addr, size_t num_2mpages, bool writable) {
+  auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
+  return SetupHugePageMap(pml4_table, 4, addr, num_2mpages, writable).error;
 }
 
 Error CleanPageMaps(LinearAddress4Level addr) {
@@ -323,6 +349,14 @@ Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
   }
 
   if (task.DPagingBegin() <= causal_addr && causal_addr < task.DPagingEnd()) {
+    //added by kk@hugepage allocation
+    if((causal_addr & (2_MiB -1)) == 0){
+      printk("Try to Hugepage allocate\n");
+      auto huge_success =
+          SetupHugePageMaps(LinearAddress4Level{causal_addr}, 1);
+      if(huge_success==Error::kSuccess)
+        return huge_success;
+    }
 // #@@range_end(handle_pf)
     return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
   }

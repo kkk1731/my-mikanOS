@@ -3,6 +3,8 @@
 #include <bitset>
 #include "logger.hpp"
 
+int printk(const char* format, ...);
+
 namespace{
   /** @brief aをb(2の累乗)で切り上げ*/
   unsigned long myceil(unsigned long a, int b){
@@ -19,9 +21,10 @@ WithError<FrameID> BitmapMemoryManager::AllocateHuge(size_t num_frames) {
   size_t start_frame_id = myceil(range_begin_.ID(), HugePage4kNum);
   while(true){
       size_t i = 0;
-      for (; i<num_frames; ++i){
-          if(start_frame_id + i*HugePage4kNum>=range_end_.ID()){
+      for (; i<num_frames; ++i){//start=262144, end=261876
+          if(start_frame_id + i*HugePage4kNum >= range_end_.ID()){
               //failed
+              printk("Faild to AllocateHuge(), id_start=%ld, id_end=%ld\n",start_frame_id, range_end_.ID());
               return {kNullFrame, MAKE_ERROR(Error::kFailHugeAllocate)};
           }
           if (GetBitHuge(FrameID { start_frame_id + i* HugePage4kNum})) {
@@ -105,7 +108,7 @@ bool BitmapMemoryManager::GetBit(FrameID frame) const {
 //added by kk
 bool BitmapMemoryManager::GetBitHuge(FrameID frame) const{
   auto line_index = frame.ID() / HugePage4kNum / kBitsPerMapLine;
-  auto bit_index = frame.ID()  / HugePage4kNum % kBitsPerMapLine;
+  auto bit_index = (frame.ID()  / HugePage4kNum) % kBitsPerMapLine;
 
   return (alloc_map_2m_[line_index] & (static_cast<MapLineType>(1) << bit_index)) != 0;
 }
@@ -171,7 +174,6 @@ void InitializeMemoryManager(const MemoryMap& memory_map) {
     }
   }
   memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
-
   if (auto err = InitializeHeap(*memory_manager)) {
     Log(kError, "failed to allocate pages: %s at %s:%d\n",
         err.Name(), err.File(), err.Line());
