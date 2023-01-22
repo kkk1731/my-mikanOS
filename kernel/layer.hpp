@@ -93,6 +93,9 @@ class LayerManager {
   Layer* FindLayer(unsigned int id);
   /** @brief 指定されたレイヤーの現在の高さを返す。 */
   int GetHeight(unsigned int id);
+  //added by kk
+  /** @brief 背景を除いた中で最も低い Windoe の Layer& を返す*/
+  Layer& GetLowestLayer();
 
  private:
   FrameBuffer* screen_{nullptr};
@@ -110,6 +113,8 @@ class ActiveLayer {
   void SetMouseLayer(unsigned int mouse_layer);
   void Activate(unsigned int layer_id);
   unsigned int GetActive() const { return active_layer_; }
+  //added by kk
+  void ChangeWindow();
 
  private:
   LayerManager& manager_;

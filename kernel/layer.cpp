@@ -5,6 +5,8 @@
 #include "logger.hpp"
 #include "task.hpp"
 
+int printk(const char* format, ...);
+
 namespace {
   template <class T, class U>
   void EraseIf(T& c, const U& pred) {
@@ -204,6 +206,10 @@ int LayerManager::GetHeight(unsigned int id) {
   return -1;
 }
 
+Layer& LayerManager::GetLowestLayer(){
+  return *layer_stack_[2];
+}
+
 namespace {
   FrameBuffer* screen;
 
@@ -241,6 +247,28 @@ void ActiveLayer::Activate(unsigned int layer_id) {
   }
 
   active_layer_ = layer_id;
+  if (active_layer_ > 0) {
+    Layer* layer = manager_.FindLayer(active_layer_);
+    layer->GetWindow()->Activate();
+    manager_.UpDown(active_layer_, 0);
+    manager_.UpDown(active_layer_, manager_.GetHeight(mouse_layer_) - 1);
+    manager_.Draw(active_layer_);
+    SendWindowActiveMessage(active_layer_, 1);
+  }
+}
+
+void ActiveLayer::ChangeWindow(){
+  //deactivate current active layer
+  printk("ChangeWindowcalled\n");
+  if (active_layer_ > 0) {
+    Layer* layer = manager_.FindLayer(active_layer_);
+    layer->GetWindow()->Deactivate();
+    manager_.Draw(active_layer_);
+    SendWindowActiveMessage(active_layer_, 0);
+  }
+  //get next layer
+  unsigned int lowest_id = manager_.GetLowestLayer().ID();
+  active_layer_ = lowest_id;
   if (active_layer_ > 0) {
     Layer* layer = manager_.FindLayer(active_layer_);
     layer->GetWindow()->Activate();
