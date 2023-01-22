@@ -23,7 +23,8 @@ mikanOS では物理メモリの管理を 4KiB ごとに bitmap で行ってい�
 
 改造前(左) と改造後(右) の実行時間(elapsed ...の行)
 <p>
-  (img source="https://user-images.githubusercontent.com/73451469/213874622-9c6dd258-39ff-4f27-bd58-30703624080c.png")
+  <img source="https://user-images.githubusercontent.com/73451469/213874622-9c6dd258-39ff-4f27-bd58-30703624080c.png">
+  <img source="https://user-images.githubusercontent.com/73451469/213874552-eb1b1bf0-5ec7-4666-ac92-8cca86829ce5.png">
   ![dpaging_huge](https://user-images.githubusercontent.com/73451469/213874552-eb1b1bf0-5ec7-4666-ac92-8cca86829ce5.png)
 </p>
 
